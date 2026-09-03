@@ -1,28 +1,156 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { supabase } from '../lib/supabase'
 
-const APP_URL = 'https://ganadera-san-ramon-app.vercel.app'
 const modules = [
-  { name:'Café',icon:'☕',detail:'Cosecha, peones, pagos y aplicaciones.' },{ name:'Ganado',icon:'🐄',detail:'Animales, tratamientos y control sanitario.' },{ name:'Inventario Café',icon:'📦',detail:'Fertilizantes, abonos, agroquímicos y herramientas.' },{ name:'Inventario Ganado',icon:'💉',detail:'Medicamentos, vacunas, alimentos y materiales.' },{ name:'Gastos',icon:'₡',detail:'Registro y consulta de gastos por finca y actividad.' },{ name:'Reportes',icon:'📊',detail:'Resumen semanal, mensual y anual.' },{ name:'Fincas',icon:'🌿',detail:'Administración de las fincas registradas.' },{ name:'Usuarios',icon:'👥',detail:'Administradores y usuarios de consulta.',adminOnly:true },
+  { name:'Café',icon:'☕',detail:'Cosecha, peones, pagos y aplicaciones.' },
+  { name:'Ganado',icon:'🐄',detail:'Animales, lotes, tratamientos y control sanitario.' },
+  { name:'Inventario Café',icon:'📦',detail:'Fertilizantes, abonos, agroquímicos y herramientas.' },
+  { name:'Inventario Ganado',icon:'💉',detail:'Medicamentos, vacunas, alimentos y materiales.' },
+  { name:'Gastos',icon:'₡',detail:'Registro y consulta de gastos por finca y actividad.' },
+  { name:'Reportes',icon:'📊',detail:'Resumen semanal, mensual y anual.' },
+  { name:'Fincas',icon:'🌿',detail:'Administración de las fincas registradas.' },
+  { name:'Usuarios',icon:'👥',detail:'Administradores y usuarios de consulta.',adminOnly:true },
 ]
 
 export default function Home(){
- const [loading,setLoading]=useState(true),[session,setSession]=useState(null),[profile,setProfile]=useState(null),[farms,setFarms]=useState([])
- const [email,setEmail]=useState(''),[password,setPassword]=useState(''),[fullName,setFullName]=useState(''),[authError,setAuthError]=useState(''),[authMessage,setAuthMessage]=useState(''),[busy,setBusy]=useState(false)
- const [hasAdmin,setHasAdmin]=useState(true),[mode,setMode]=useState('login'),[activeModule,setActiveModule]=useState('Inicio'),[recovery,setRecovery]=useState(false),[newPassword,setNewPassword]=useState('')
- const isAdmin=profile?.role==='admin', visibleModules=useMemo(()=>modules.filter(x=>!x.adminOnly||isAdmin),[isAdmin])
- useEffect(()=>{let mounted=true;async function init(){const {data:a}=await supabase.rpc('has_admin');if(mounted){setHasAdmin(Boolean(a));if(!a)setMode('register')}const {data}=await supabase.auth.getSession();if(!mounted)return;setSession(data.session);if(data.session)await loadUserData(data.session.user.id);setLoading(false)}init();const {data:l}=supabase.auth.onAuthStateChange((event,s)=>{if(!mounted)return;if(event==='PASSWORD_RECOVERY')setRecovery(true);setSession(s);if(s)setTimeout(()=>loadUserData(s.user.id),0);else{setProfile(null);setFarms([])}setLoading(false)});return()=>{mounted=false;l.subscription.unsubscribe()}},[])
- async function loadUserData(uid){const [{data:p},{data:f}]=await Promise.all([supabase.from('profiles').select('full_name,role').eq('user_id',uid).maybeSingle(),supabase.from('farms').select('id,name,active').eq('active',true).order('name')]);setProfile(p||{full_name:'',role:'viewer'});setFarms(f||[])}
- async function login(e){e.preventDefault();setBusy(true);setAuthError('');setAuthMessage('');const {error}=await supabase.auth.signInWithPassword({email,password});if(error)setAuthError('Correo o contraseña incorrectos. Use “Olvidé mi contraseña” si necesita crear una nueva.');else setPassword('');setBusy(false)}
- async function register(e){e.preventDefault();setBusy(true);setAuthError('');setAuthMessage('');const {data,error}=await supabase.auth.signUp({email,password,options:{emailRedirectTo:APP_URL,data:{full_name:fullName}}});if(error){setAuthError(error.message);setBusy(false);return}if(data.session){const {error:r}=await supabase.rpc('bootstrap_admin',{p_full_name:fullName});if(r)setAuthError(r.message);else{setHasAdmin(true);await loadUserData(data.session.user.id)}}else setAuthMessage('Cuenta creada. Revise su correo para confirmar.');setBusy(false)}
- async function resendConfirmation(){if(!email){setAuthError('Escriba primero su correo.');return}setBusy(true);setAuthError('');const {error}=await supabase.auth.resend({type:'signup',email,options:{emailRedirectTo:APP_URL}});if(error)setAuthError(error.message);else setAuthMessage('Correo de confirmación reenviado.');setBusy(false)}
- async function resetPassword(){if(!email){setAuthError('Escriba primero el correo de su cuenta.');return}setBusy(true);setAuthError('');setAuthMessage('');const {error}=await supabase.auth.resetPasswordForEmail(email,{redirectTo:APP_URL});if(error)setAuthError(`No se pudo enviar la recuperación: ${error.message}`);else setAuthMessage('Solicitud enviada. Revise Recibidos, Spam y Promociones. Abra el enlace para crear una contraseña nueva.');setBusy(false)}
- async function saveNewPassword(e){e.preventDefault();if(newPassword.length<8){setAuthError('La nueva contraseña debe tener al menos 8 caracteres.');return}setBusy(true);setAuthError('');const {error}=await supabase.auth.updateUser({password:newPassword});if(error)setAuthError(error.message);else{setRecovery(false);setNewPassword('');setAuthMessage('Contraseña actualizada correctamente. Ya puede utilizar el sistema.')}setBusy(false)}
- async function logout(){await supabase.auth.signOut()}
- if(loading)return <div className="loading-screen">Cargando Ganadera San Ramón…</div>
- if(recovery&&session)return <main className="login-page"><section className="brand-panel"><div><p className="eyebrow light">Seguridad de la cuenta</p><h1>Ganadera<br/>San Ramón</h1><p>Establezca una nueva contraseña para su cuenta de administrador.</p></div></section><section className="login-panel"><form className="login-card" onSubmit={saveNewPassword}><span className="logo-mark">GSR</span><h2>Nueva contraseña</h2><p className="muted">Escriba una contraseña nueva de al menos 8 caracteres.</p><label>Nueva contraseña</label><input type="password" value={newPassword} onChange={e=>setNewPassword(e.target.value)} minLength={8} required/>{authError&&<div className="error-box">{authError}</div>}<button className="primary-button" disabled={busy}>{busy?'Guardando…':'Guardar nueva contraseña'}</button></form></section></main>
- if(!session)return <main className="login-page"><section className="brand-panel"><div><p className="eyebrow light">Sistema de gestión agropecuaria</p><h1>Ganadera<br/>San Ramón</h1><p>Administración separada de café y ganado, con inventarios, gastos y reportes por finca.</p></div><div className="brand-footer">Gestión clara · Datos protegidos · Acceso por usuario</div></section><section className="login-panel"><form className="login-card" onSubmit={mode==='register'?register:login}><span className="logo-mark">GSR</span><h2>{mode==='register'?'Crear administrador inicial':'Iniciar sesión'}</h2><p className="muted">{mode==='register'?'Configure la primera cuenta administrativa.':'Ingrese con su correo y contraseña.'}</p>{mode==='register'&&<><label>Nombre completo</label><input value={fullName} onChange={e=>setFullName(e.target.value)} required/></>}<label>Correo electrónico</label><input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="correo@ejemplo.com" required/><label>Contraseña</label><input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" minLength={6} required/>{authError&&<div className="error-box">{authError}</div>}{authMessage&&<div className="success-box">{authMessage}</div>}<button className="primary-button" disabled={busy}>{busy?'Procesando…':mode==='register'?'Crear administrador':'Ingresar'}</button>{mode==='login'&&<button type="button" className="text-button" onClick={resetPassword} disabled={busy}>Olvidé mi contraseña</button>}<button type="button" className="text-button" onClick={resendConfirmation} disabled={busy}>Reenviar correo de confirmación</button>{hasAdmin&&<button type="button" className="text-button" onClick={()=>{setMode(mode==='login'?'register':'login');setAuthError('');setAuthMessage('')}}>{mode==='login'?'Configurar administrador inicial':'Volver a iniciar sesión'}</button>}<p className="login-note">La contraseña se gestiona directamente por Supabase.</p></form></section></main>
- return <div className="app-shell"><aside className="sidebar"><div><div className="sidebar-brand"><span>GSR</span><strong>Ganadera<br/>San Ramón</strong></div><nav><button className={`nav-item ${activeModule==='Inicio'?'active':''}`} onClick={()=>setActiveModule('Inicio')}>⌂ <span>Inicio</span></button>{visibleModules.map(item=><button className={`nav-item ${activeModule===item.name?'active':''}`} key={item.name} onClick={()=>setActiveModule(item.name)}>{item.icon} <span>{item.name}</span></button>)}</nav></div><button className="logout" onClick={logout}>Cerrar sesión</button></aside><main className="dashboard"><header className="topbar"><div><p className="eyebrow">{activeModule==='Inicio'?'Panel principal':`Módulo ${activeModule}`}</p><h1>{activeModule==='Inicio'?`Bienvenido${profile?.full_name?`, ${profile.full_name}`:''}`:activeModule}</h1></div><div className="user-badge"><span className={`role ${isAdmin?'admin':'viewer'}`}>{isAdmin?'Administrador':'Consulta'}</span><small>{session.user.email}</small></div></header>{authMessage&&<div className="success-box">{authMessage}</div>}{activeModule==='Inicio'?<><section className="summary-grid"><article className="summary-card"><span>Fincas activas</span><strong>{farms.length}</strong></article><article className="summary-card"><span>Área Café</span><strong>Activa</strong></article><article className="summary-card"><span>Área Ganado</span><strong>Activa</strong></article><article className="summary-card"><span>Acceso</span><strong>{isAdmin?'Completo':'Lectura'}</strong></article></section><section className="section-heading"><div><h2>Módulos</h2><p>Seleccione el área que desea gestionar o consultar.</p></div></section><section className="module-grid">{visibleModules.map(item=><article className="module-card" key={item.name}><div className="module-icon">{item.icon}</div><h3>{item.name}</h3><p>{item.detail}</p><button onClick={()=>setActiveModule(item.name)}>Entrar →</button></article>)}</section><section className="farm-section"><div className="section-heading"><div><h2>Fincas registradas</h2><p>Fincas activas disponibles.</p></div></div>{farms.length?<div className="farm-list">{farms.map(f=><span key={f.id}>{f.name}</span>)}</div>:<p className="muted">Aún no hay fincas registradas.</p>}</section></>:<section className="placeholder-panel"><h2>{activeModule}</h2><p>El acceso ya está protegido. Continuaremos conectando este módulo con la base de datos.</p></section>}</main></div>
+  const [loading,setLoading]=useState(true)
+  const [user,setUser]=useState(null)
+  const [farms,setFarms]=useState([])
+  const [email,setEmail]=useState('')
+  const [password,setPassword]=useState('')
+  const [authError,setAuthError]=useState('')
+  const [authMessage,setAuthMessage]=useState('')
+  const [busy,setBusy]=useState(false)
+  const [activeModule,setActiveModule]=useState('Inicio')
+
+  const isAdmin=user?.role==='admin'
+  const visibleModules=useMemo(()=>modules.filter(x=>!x.adminOnly||isAdmin),[isAdmin])
+
+  useEffect(()=>{ init() },[])
+
+  async function init(){
+    try{
+      const res=await fetch('/api/auth/session',{cache:'no-store'})
+      const data=await res.json()
+      if(data.user){
+        setUser(data.user)
+        await loadFarms()
+      }
+    }catch{
+      setAuthError('No se pudo comprobar la sesión.')
+    }finally{
+      setLoading(false)
+    }
+  }
+
+  async function loadFarms(){
+    const res=await fetch('/api/farms',{cache:'no-store'})
+    if(!res.ok){ setFarms([]); return }
+    const data=await res.json()
+    setFarms(data.farms||[])
+  }
+
+  async function login(e){
+    e.preventDefault()
+    setBusy(true)
+    setAuthError('')
+    setAuthMessage('')
+    try{
+      const res=await fetch('/api/auth/login',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({email,password})
+      })
+      const data=await res.json()
+      if(!res.ok){
+        setAuthError(data.error||'No se pudo iniciar sesión.')
+        return
+      }
+      setUser(data.user)
+      setPassword('')
+      await loadFarms()
+    }catch{
+      setAuthError('No se pudo conectar con el servidor.')
+    }finally{
+      setBusy(false)
+    }
+  }
+
+  async function logout(){
+    await fetch('/api/auth/logout',{method:'POST'})
+    setUser(null)
+    setFarms([])
+    setActiveModule('Inicio')
+    setAuthMessage('Sesión cerrada correctamente.')
+  }
+
+  if(loading) return <div className="loading-screen">Cargando Ganadera San Ramón…</div>
+
+  if(!user) return <main className="login-page">
+    <section className="brand-panel">
+      <div>
+        <p className="eyebrow light">Sistema de gestión agropecuaria</p>
+        <h1>Ganadera<br/>San Ramón</h1>
+        <p>Administración separada de café y ganado, con inventarios, gastos y reportes por finca.</p>
+      </div>
+      <div className="brand-footer">Gestión clara · Datos protegidos · Acceso por usuario</div>
+    </section>
+    <section className="login-panel">
+      <form className="login-card" onSubmit={login}>
+        <span className="logo-mark">GSR</span>
+        <h2>Iniciar sesión</h2>
+        <p className="muted">Ingrese con su correo y contraseña.</p>
+        <label>Correo electrónico</label>
+        <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="correo@ejemplo.com" required/>
+        <label>Contraseña</label>
+        <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" minLength={8} required/>
+        {authError&&<div className="error-box">{authError}</div>}
+        {authMessage&&<div className="success-box">{authMessage}</div>}
+        <button className="primary-button" disabled={busy}>{busy?'Ingresando…':'Ingresar'}</button>
+        <p className="login-note">Acceso protegido mediante Neon PostgreSQL y sesión segura.</p>
+      </form>
+    </section>
+  </main>
+
+  return <div className="app-shell">
+    <aside className="sidebar">
+      <div>
+        <div className="sidebar-brand"><span>GSR</span><strong>Ganadera<br/>San Ramón</strong></div>
+        <nav>
+          <button className={`nav-item ${activeModule==='Inicio'?'active':''}`} onClick={()=>setActiveModule('Inicio')}>⌂ <span>Inicio</span></button>
+          {visibleModules.map(item=><button className={`nav-item ${activeModule===item.name?'active':''}`} key={item.name} onClick={()=>setActiveModule(item.name)}>{item.icon} <span>{item.name}</span></button>)}
+        </nav>
+      </div>
+      <button className="logout" onClick={logout}>Cerrar sesión</button>
+    </aside>
+    <main className="dashboard">
+      <header className="topbar">
+        <div>
+          <p className="eyebrow">{activeModule==='Inicio'?'Panel principal':`Módulo ${activeModule}`}</p>
+          <h1>{activeModule==='Inicio'?`Bienvenido${user?.full_name?`, ${user.full_name}`:''}`:activeModule}</h1>
+        </div>
+        <div className="user-badge">
+          <span className={`role ${isAdmin?'admin':'viewer'}`}>{isAdmin?'Administrador':'Consulta'}</span>
+          <small>{user.email}</small>
+        </div>
+      </header>
+      {activeModule==='Inicio'?<>
+        <section className="summary-grid">
+          <article className="summary-card"><span>Fincas activas</span><strong>{farms.length}</strong></article>
+          <article className="summary-card"><span>Área Café</span><strong>Activa</strong></article>
+          <article className="summary-card"><span>Área Ganado</span><strong>Activa</strong></article>
+          <article className="summary-card"><span>Acceso</span><strong>{isAdmin?'Completo':'Lectura'}</strong></article>
+        </section>
+        <section className="section-heading"><div><h2>Módulos</h2><p>Seleccione el área que desea gestionar o consultar.</p></div></section>
+        <section className="module-grid">
+          {visibleModules.map(item=><article className="module-card" key={item.name}><div className="module-icon">{item.icon}</div><h3>{item.name}</h3><p>{item.detail}</p><button onClick={()=>setActiveModule(item.name)}>Entrar →</button></article>)}
+        </section>
+        <section className="farm-section">
+          <div className="section-heading"><div><h2>Fincas registradas</h2><p>Fincas activas disponibles.</p></div></div>
+          {farms.length?<div className="farm-list">{farms.map(f=><span key={f.id}>{f.name}</span>)}</div>:<p className="muted">Aún no hay fincas registradas.</p>}
+        </section>
+      </>:<section className="placeholder-panel"><h2>{activeModule}</h2><p>Este módulo ya utiliza la nueva autenticación con Neon. Continuaremos conectando sus formularios y reportes.</p></section>}
+    </main>
+  </div>
 }
