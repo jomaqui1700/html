@@ -15,13 +15,13 @@ export async function POST(req){
  if(a.session.role!=='admin')return NextResponse.json({error:'Solo administrador.'},{status:403})
  try{
   const b=await req.json()
-  if(!b.harvest_date||!b.farm_id)return NextResponse.json({error:'Fecha y finca son requeridas.'},{status:400})
+  if(!b.harvest_date)return NextResponse.json({error:'La fecha es requerida.'},{status:400})
   const entries=Array.isArray(b.entries)?b.entries:[]
-  const valid=entries.map(x=>({worker_id:Number(x.worker_id),quantity:Number(x.quantity||0),rate_per_unit:Number(x.rate_per_unit||0),notes:String(x.notes||'')})).filter(x=>x.worker_id&&x.quantity>0)
-  if(!valid.length)return NextResponse.json({error:'Ingrese al menos una medida de cosecha.'},{status:400})
+  const valid=entries.map(x=>({worker_id:Number(x.worker_id),farm_id:Number(x.farm_id),quantity:Number(x.quantity||0),rate_per_unit:Number(x.rate_per_unit||0),notes:String(x.notes||'')})).filter(x=>x.worker_id&&x.farm_id&&x.quantity>0)
+  if(!valid.length)return NextResponse.json({error:'Ingrese al menos una medida con peón, finca y cajuelas.'},{status:400})
   if(valid.some(x=>x.quantity<0||x.rate_per_unit<0))return NextResponse.json({error:'Las cantidades y precios no pueden ser negativos.'},{status:400})
   for(const x of valid){
-   await sql`INSERT INTO coffee_harvest(harvest_date,week_number,farm_id,worker_id,quantity,unit,rate_per_unit,paid,notes,created_by) VALUES(${b.harvest_date},${Number(b.week_number)},${Number(b.farm_id)},${x.worker_id},${x.quantity},'Cajuela',${x.rate_per_unit},false,${x.notes},${a.session.id})`
+   await sql`INSERT INTO coffee_harvest(harvest_date,week_number,farm_id,worker_id,quantity,unit,rate_per_unit,paid,notes,created_by) VALUES(${b.harvest_date},${Number(b.week_number)},${x.farm_id},${x.worker_id},${x.quantity},'Cajuela',${x.rate_per_unit},false,${x.notes},${a.session.id})`
   }
   return NextResponse.json({ok:true,count:valid.length})
  }catch(e){console.error(e);return NextResponse.json({error:'No se pudo registrar la cosecha.'},{status:500})}
