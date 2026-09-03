@@ -20,7 +20,7 @@ export async function GET(){
       w.full_name AS worker_name,f.name AS farm_name,
       (ww.monday_hours+ww.tuesday_hours+ww.wednesday_hours+ww.thursday_hours+ww.friday_hours+ww.saturday_hours+ww.sunday_hours) AS total_hours,
       ((ww.monday_hours+ww.tuesday_hours+ww.wednesday_hours+ww.thursday_hours+ww.friday_hours+ww.saturday_hours+ww.sunday_hours)*ww.hourly_rate) AS gross_pay,
-      (((ww.monday_hours+ww.tuesday_hours+ww.wednesday_hours+ww.thursday_hours+ww.friday_hours+ww.saturday_hours+ww.sunday_hours)*ww.hourly_rate)+ww.advances-ww.deductions) AS net_pay
+      (((ww.monday_hours+ww.tuesday_hours+ww.wednesday_hours+ww.thursday_hours+ww.friday_hours+ww.saturday_hours+ww.sunday_hours)*ww.hourly_rate)-ww.advances-ww.deductions) AS net_pay
     FROM worker_weeks ww
     JOIN workers w ON w.id=ww.worker_id
     JOIN farms f ON f.id=ww.farm_id
