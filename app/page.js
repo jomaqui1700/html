@@ -1,176 +1,29 @@
 'use client'
-
-import { useEffect, useMemo, useState } from 'react'
-
-const modules = [
-  { name:'Café',icon:'☕',detail:'Cosecha, peones, pagos y aplicaciones.' },
-  { name:'Ganado',icon:'🐄',detail:'Animales, lotes, tratamientos y control sanitario.' },
-  { name:'Inventario Café',icon:'📦',detail:'Fertilizantes, abonos, agroquímicos y herramientas.' },
-  { name:'Inventario Ganado',icon:'💉',detail:'Medicamentos, vacunas, alimentos y materiales.' },
-  { name:'Gastos',icon:'₡',detail:'Registro y consulta de gastos por finca y actividad.' },
-  { name:'Reportes',icon:'📊',detail:'Resumen semanal, mensual y anual.' },
-  { name:'Fincas',icon:'🌿',detail:'Administración de las fincas registradas.' },
-  { name:'Usuarios',icon:'👥',detail:'Administradores y usuarios de consulta.',adminOnly:true },
-]
-
+import {useEffect,useMemo,useState} from'react'
+const modules=[{name:'Café',icon:'☕',detail:'Cosecha, peones, pagos y aplicaciones.'},{name:'Ganado',icon:'🐄',detail:'Animales, lotes, tratamientos y control sanitario.'},{name:'Inventario Café',icon:'📦',detail:'Fertilizantes, abonos, agroquímicos y herramientas.'},{name:'Inventario Ganado',icon:'💉',detail:'Medicamentos, vacunas, alimentos y materiales.'},{name:'Gastos',icon:'₡',detail:'Registro y consulta de gastos por finca y actividad.'},{name:'Reportes',icon:'📊',detail:'Resumen semanal, mensual y anual.'},{name:'Fincas',icon:'🌿',detail:'Administración de las fincas registradas.'},{name:'Usuarios',icon:'👥',detail:'Administradores y usuarios de consulta.',adminOnly:true}]
+const coffeeSections=['Peones de café','Cosecha diaria','Pagos semanales','Fertilización','Aplicaciones','Abonos','Gastos de café','Producción por finca','Reportes de café']
 export default function Home(){
-  const [loading,setLoading]=useState(true)
-  const [user,setUser]=useState(null)
-  const [farms,setFarms]=useState([])
-  const [email,setEmail]=useState('')
-  const [password,setPassword]=useState('')
-  const [authError,setAuthError]=useState('')
-  const [authMessage,setAuthMessage]=useState('')
-  const [busy,setBusy]=useState(false)
-  const [activeModule,setActiveModule]=useState('Inicio')
-  const [farmName,setFarmName]=useState('')
-  const [editingFarm,setEditingFarm]=useState(null)
-  const [farmError,setFarmError]=useState('')
-  const [farmMessage,setFarmMessage]=useState('')
-  const [farmBusy,setFarmBusy]=useState(false)
-
-  const isAdmin=user?.role==='admin'
-  const visibleModules=useMemo(()=>modules.filter(x=>!x.adminOnly||isAdmin),[isAdmin])
-  const activeFarms=useMemo(()=>farms.filter(f=>f.active),[farms])
-
-  useEffect(()=>{ init() },[])
-
-  async function init(){
-    try{
-      const res=await fetch('/api/auth/session',{cache:'no-store'})
-      const data=await res.json()
-      if(data.user){
-        setUser(data.user)
-        await loadFarms()
-      }
-    }catch{
-      setAuthError('No se pudo comprobar la sesión.')
-    }finally{
-      setLoading(false)
-    }
-  }
-
-  async function loadFarms(){
-    const res=await fetch('/api/farms',{cache:'no-store'})
-    if(!res.ok){ setFarms([]); return }
-    const data=await res.json()
-    setFarms(data.farms||[])
-  }
-
-  async function login(e){
-    e.preventDefault()
-    setBusy(true)
-    setAuthError('')
-    setAuthMessage('')
-    try{
-      const res=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})})
-      const data=await res.json()
-      if(!res.ok){ setAuthError(data.error||'No se pudo iniciar sesión.'); return }
-      setUser(data.user)
-      setPassword('')
-      await loadFarms()
-    }catch{
-      setAuthError('No se pudo conectar con el servidor.')
-    }finally{
-      setBusy(false)
-    }
-  }
-
-  async function logout(){
-    await fetch('/api/auth/logout',{method:'POST'})
-    setUser(null)
-    setFarms([])
-    setActiveModule('Inicio')
-    setAuthMessage('Sesión cerrada correctamente.')
-  }
-
-  async function saveFarm(e){
-    e.preventDefault()
-    if(!isAdmin) return
-    setFarmBusy(true)
-    setFarmError('')
-    setFarmMessage('')
-    try{
-      const method=editingFarm?'PATCH':'POST'
-      const payload=editingFarm?{id:editingFarm.id,name:farmName,active:editingFarm.active}:{name:farmName}
-      const res=await fetch('/api/farms',{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
-      const data=await res.json()
-      if(!res.ok){ setFarmError(data.error||'No se pudo guardar la finca.'); return }
-      setFarmName('')
-      setEditingFarm(null)
-      setFarmMessage(editingFarm?'Finca actualizada correctamente.':'Finca creada correctamente.')
-      await loadFarms()
-    }catch{
-      setFarmError('No se pudo conectar con el servidor.')
-    }finally{
-      setFarmBusy(false)
-    }
-  }
-
-  async function toggleFarm(farm){
-    if(!isAdmin) return
-    setFarmBusy(true)
-    setFarmError('')
-    setFarmMessage('')
-    try{
-      const res=await fetch('/api/farms',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:farm.id,name:farm.name,active:!farm.active})})
-      const data=await res.json()
-      if(!res.ok){ setFarmError(data.error||'No se pudo actualizar la finca.'); return }
-      setFarmMessage(data.farm.active?'Finca activada correctamente.':'Finca desactivada correctamente.')
-      await loadFarms()
-    }catch{
-      setFarmError('No se pudo conectar con el servidor.')
-    }finally{
-      setFarmBusy(false)
-    }
-  }
-
-  function startEditFarm(farm){
-    setEditingFarm(farm)
-    setFarmName(farm.name)
-    setFarmError('')
-    setFarmMessage('')
-  }
-
-  function cancelEditFarm(){
-    setEditingFarm(null)
-    setFarmName('')
-    setFarmError('')
-  }
-
-  if(loading) return <div className="loading-screen">Cargando Ganadera San Ramón…</div>
-
-  if(!user) return <main className="login-page">
-    <section className="brand-panel"><div><p className="eyebrow light">Sistema de gestión agropecuaria</p><h1>Ganadera<br/>San Ramón</h1><p>Administración separada de café y ganado, con inventarios, gastos y reportes por finca.</p></div><div className="brand-footer">Gestión clara · Datos protegidos · Acceso por usuario</div></section>
-    <section className="login-panel"><form className="login-card" onSubmit={login}><span className="logo-mark">GSR</span><h2>Iniciar sesión</h2><p className="muted">Ingrese con su correo y contraseña.</p><label>Correo electrónico</label><input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="correo@ejemplo.com" required/><label>Contraseña</label><input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" minLength={8} required/>{authError&&<div className="error-box">{authError}</div>}{authMessage&&<div className="success-box">{authMessage}</div>}<button className="primary-button" disabled={busy}>{busy?'Ingresando…':'Ingresar'}</button><p className="login-note">Acceso protegido mediante Neon PostgreSQL y sesión segura.</p></form></section>
-  </main>
-
-  return <div className="app-shell">
-    <aside className="sidebar"><div><div className="sidebar-brand"><span>GSR</span><strong>Ganadera<br/>San Ramón</strong></div><nav><button className={`nav-item ${activeModule==='Inicio'?'active':''}`} onClick={()=>setActiveModule('Inicio')}>⌂ <span>Inicio</span></button>{visibleModules.map(item=><button className={`nav-item ${activeModule===item.name?'active':''}`} key={item.name} onClick={()=>setActiveModule(item.name)}>{item.icon} <span>{item.name}</span></button>)}</nav></div><button className="logout" onClick={logout}>Cerrar sesión</button></aside>
-    <main className="dashboard">
-      <header className="topbar"><div><p className="eyebrow">{activeModule==='Inicio'?'Panel principal':`Módulo ${activeModule}`}</p><h1>{activeModule==='Inicio'?`Bienvenido${user?.full_name?`, ${user.full_name}`:''}`:activeModule}</h1></div><div className="user-badge"><span className={`role ${isAdmin?'admin':'viewer'}`}>{isAdmin?'Administrador':'Consulta'}</span><small>{user.email}</small></div></header>
-
-      {activeModule==='Inicio'?<>
-        <section className="summary-grid"><article className="summary-card"><span>Fincas activas</span><strong>{activeFarms.length}</strong></article><article className="summary-card"><span>Área Café</span><strong>Activa</strong></article><article className="summary-card"><span>Área Ganado</span><strong>Activa</strong></article><article className="summary-card"><span>Acceso</span><strong>{isAdmin?'Completo':'Lectura'}</strong></article></section>
-        <section className="section-heading"><div><h2>Módulos</h2><p>Seleccione el área que desea gestionar o consultar.</p></div></section>
-        <section className="module-grid">{visibleModules.map(item=><article className="module-card" key={item.name}><div className="module-icon">{item.icon}</div><h3>{item.name}</h3><p>{item.detail}</p><button onClick={()=>setActiveModule(item.name)}>Entrar →</button></article>)}</section>
-        <section className="farm-section"><div className="section-heading"><div><h2>Fincas registradas</h2><p>Fincas activas disponibles.</p></div></div>{activeFarms.length?<div className="farm-list">{activeFarms.map(f=><span key={f.id}>{f.name}</span>)}</div>:<p className="muted">Aún no hay fincas registradas.</p>}</section>
-      </>:activeModule==='Fincas'?<section className="farms-module">
-        <div className="farms-toolbar"><div><h2>Administración de fincas</h2><p className="muted">Las fincas son la base para café, ganado, inventarios, gastos y reportes.</p></div><div className="farm-count"><strong>{activeFarms.length}</strong><span>activas</span></div></div>
-
-        {isAdmin&&<form className="farm-form" onSubmit={saveFarm}><div><label>{editingFarm?'Editar nombre':'Nueva finca'}</label><input value={farmName} onChange={e=>setFarmName(e.target.value)} placeholder="Ej. Finca San Ramón" required/></div><button className="primary-action" disabled={farmBusy}>{farmBusy?'Guardando…':editingFarm?'Guardar cambios':'Agregar finca'}</button>{editingFarm&&<button type="button" className="secondary-action" onClick={cancelEditFarm}>Cancelar</button>}</form>}
-
-        {farmError&&<div className="error-box">{farmError}</div>}
-        {farmMessage&&<div className="success-box">{farmMessage}</div>}
-
-        <div className="farms-table-wrap">
-          <table className="farms-table">
-            <thead><tr><th>Finca</th><th>Estado</th><th>Creada</th>{isAdmin&&<th>Acciones</th>}</tr></thead>
-            <tbody>{farms.length?farms.map(f=><tr key={f.id}><td><strong>{f.name}</strong></td><td><span className={`status-pill ${f.active?'active':'inactive'}`}>{f.active?'Activa':'Inactiva'}</span></td><td>{f.created_at?new Date(f.created_at).toLocaleDateString('es-CR'):'—'}</td>{isAdmin&&<td className="farm-actions"><button onClick={()=>startEditFarm(f)}>Editar</button><button onClick={()=>toggleFarm(f)} disabled={farmBusy}>{f.active?'Desactivar':'Activar'}</button></td>}</tr>):<tr><td colSpan={isAdmin?4:3} className="empty-cell">Aún no hay fincas registradas.</td></tr>}</tbody>
-          </table>
-        </div>
-        {!isAdmin&&<p className="viewer-note">Su cuenta es de consulta. Puede ver las fincas, pero no modificarlas.</p>}
-      </section>:<section className="placeholder-panel"><h2>{activeModule}</h2><p>Este módulo ya utiliza la nueva autenticación con Neon. Continuaremos conectando sus formularios y reportes.</p></section>}
-    </main>
-  </div>
+ const[loading,setLoading]=useState(true),[user,setUser]=useState(null),[farms,setFarms]=useState([]),[email,setEmail]=useState(''),[password,setPassword]=useState(''),[authError,setAuthError]=useState(''),[busy,setBusy]=useState(false),[activeModule,setActiveModule]=useState('Inicio')
+ const[farmName,setFarmName]=useState(''),[editingFarm,setEditingFarm]=useState(null),[farmError,setFarmError]=useState(''),[farmMessage,setFarmMessage]=useState(''),[farmBusy,setFarmBusy]=useState(false)
+ const[coffeeSection,setCoffeeSection]=useState('Peones de café'),[workers,setWorkers]=useState([]),[workerBusy,setWorkerBusy]=useState(false),[workerError,setWorkerError]=useState(''),[workerMessage,setWorkerMessage]=useState(''),[editingWorker,setEditingWorker]=useState(null),[workerForm,setWorkerForm]=useState({farm_id:'',full_name:'',identification:'',phone:'',hourly_rate:''})
+ const isAdmin=user?.role==='admin',visibleModules=useMemo(()=>modules.filter(x=>!x.adminOnly||isAdmin),[isAdmin]),activeFarms=useMemo(()=>farms.filter(f=>f.active),[farms])
+ useEffect(()=>{init()},[])
+ async function init(){try{const r=await fetch('/api/auth/session',{cache:'no-store'}),d=await r.json();if(d.user){setUser(d.user);await loadFarms()}}finally{setLoading(false)}}
+ async function loadFarms(){const r=await fetch('/api/farms',{cache:'no-store'});if(r.ok){const d=await r.json();setFarms(d.farms||[])}}
+ async function loadWorkers(){setWorkerError('');const r=await fetch('/api/workers',{cache:'no-store'}),d=await r.json();if(r.ok)setWorkers(d.workers||[]);else setWorkerError(d.error||'No se pudieron cargar los peones.')}
+ async function login(e){e.preventDefault();setBusy(true);setAuthError('');try{const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})}),d=await r.json();if(!r.ok){setAuthError(d.error||'No se pudo iniciar sesión.');return}setUser(d.user);setPassword('');await loadFarms()}catch{setAuthError('No se pudo conectar con el servidor.')}finally{setBusy(false)}}
+ async function logout(){await fetch('/api/auth/logout',{method:'POST'});setUser(null);setFarms([]);setWorkers([]);setActiveModule('Inicio')}
+ function openModule(name){setActiveModule(name);if(name==='Café')loadWorkers()}
+ async function saveFarm(e){e.preventDefault();setFarmBusy(true);setFarmError('');setFarmMessage('');try{const r=await fetch('/api/farms',{method:editingFarm?'PATCH':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(editingFarm?{id:editingFarm.id,name:farmName,active:editingFarm.active}:{name:farmName})}),d=await r.json();if(!r.ok){setFarmError(d.error);return}setFarmName('');setEditingFarm(null);setFarmMessage('Finca guardada correctamente.');await loadFarms()}finally{setFarmBusy(false)}}
+ async function toggleFarm(f){setFarmBusy(true);const r=await fetch('/api/farms',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:f.id,name:f.name,active:!f.active})});if(r.ok)await loadFarms();setFarmBusy(false)}
+ async function saveWorker(e){e.preventDefault();setWorkerBusy(true);setWorkerError('');setWorkerMessage('');try{const payload={...workerForm,id:editingWorker?.id,active:editingWorker?editingWorker.active:true},r=await fetch('/api/workers',{method:editingWorker?'PATCH':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),d=await r.json();if(!r.ok){setWorkerError(d.error||'No se pudo guardar.');return}setWorkerForm({farm_id:'',full_name:'',identification:'',phone:'',hourly_rate:''});setEditingWorker(null);setWorkerMessage('Peón guardado correctamente.');await loadWorkers()}finally{setWorkerBusy(false)}}
+ async function toggleWorker(w){setWorkerBusy(true);const r=await fetch('/api/workers',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({...w,active:!w.active})});if(r.ok)await loadWorkers();setWorkerBusy(false)}
+ function editWorker(w){setEditingWorker(w);setWorkerForm({farm_id:String(w.farm_id),full_name:w.full_name,identification:w.identification||'',phone:w.phone||'',hourly_rate:String(w.hourly_rate||'')})}
+ if(loading)return <div className="loading-screen">Cargando Ganadera San Ramón…</div>
+ if(!user)return <main className="login-page"><section className="brand-panel"><div><p className="eyebrow light">Sistema de gestión agropecuaria</p><h1>Ganadera<br/>San Ramón</h1><p>Administración separada de café y ganado, con inventarios, gastos y reportes por finca.</p></div></section><section className="login-panel"><form className="login-card" onSubmit={login}><span className="logo-mark">GSR</span><h2>Iniciar sesión</h2><p className="muted">Ingrese con su correo y contraseña.</p><label>Correo electrónico</label><input type="email" value={email} onChange={e=>setEmail(e.target.value)} required/><label>Contraseña</label><input type="password" value={password} onChange={e=>setPassword(e.target.value)} minLength={8} required/>{authError&&<div className="error-box">{authError}</div>}<button className="primary-button" disabled={busy}>{busy?'Ingresando…':'Ingresar'}</button><p className="login-note">Acceso protegido mediante Neon PostgreSQL y sesión segura.</p></form></section></main>
+ return <div className="app-shell"><aside className="sidebar"><div><div className="sidebar-brand"><span>GSR</span><strong>Ganadera<br/>San Ramón</strong></div><nav><button className={`nav-item ${activeModule==='Inicio'?'active':''}`} onClick={()=>setActiveModule('Inicio')}>⌂ <span>Inicio</span></button>{visibleModules.map(i=><button className={`nav-item ${activeModule===i.name?'active':''}`} key={i.name} onClick={()=>openModule(i.name)}>{i.icon} <span>{i.name}</span></button>)}</nav></div><button className="logout" onClick={logout}>Cerrar sesión</button></aside><main className="dashboard"><header className="topbar"><div><p className="eyebrow">{activeModule==='Inicio'?'Panel principal':`Módulo ${activeModule}`}</p><h1>{activeModule==='Inicio'?`Bienvenido${user.full_name?`, ${user.full_name}`:''}`:activeModule}</h1></div><div className="user-badge"><span className={`role ${isAdmin?'admin':'viewer'}`}>{isAdmin?'Administrador':'Consulta'}</span><small>{user.email}</small></div></header>
+ {activeModule==='Inicio'?<><section className="summary-grid"><article className="summary-card"><span>Fincas activas</span><strong>{activeFarms.length}</strong></article><article className="summary-card"><span>Área Café</span><strong>Activa</strong></article><article className="summary-card"><span>Área Ganado</span><strong>Activa</strong></article><article className="summary-card"><span>Acceso</span><strong>{isAdmin?'Completo':'Lectura'}</strong></article></section><section className="section-heading"><div><h2>Módulos</h2><p>Seleccione el área que desea gestionar o consultar.</p></div></section><section className="module-grid">{visibleModules.map(i=><article className="module-card" key={i.name}><div className="module-icon">{i.icon}</div><h3>{i.name}</h3><p>{i.detail}</p><button onClick={()=>openModule(i.name)}>Entrar →</button></article>)}</section></>:
+ activeModule==='Fincas'?<section className="farms-module"><div className="farms-toolbar"><div><h2>Administración de fincas</h2><p className="muted">Base para todas las áreas.</p></div></div>{isAdmin&&<form className="farm-form" onSubmit={saveFarm}><div><label>Nueva finca</label><input value={farmName} onChange={e=>setFarmName(e.target.value)} required/></div><button className="primary-action" disabled={farmBusy}>{editingFarm?'Guardar cambios':'Agregar finca'}</button></form>}{farmError&&<div className="error-box">{farmError}</div>}{farmMessage&&<div className="success-box">{farmMessage}</div>}<div className="farms-table-wrap"><table className="farms-table"><thead><tr><th>Finca</th><th>Estado</th>{isAdmin&&<th>Acciones</th>}</tr></thead><tbody>{farms.map(f=><tr key={f.id}><td><strong>{f.name}</strong></td><td><span className={`status-pill ${f.active?'active':'inactive'}`}>{f.active?'Activa':'Inactiva'}</span></td>{isAdmin&&<td className="farm-actions"><button onClick={()=>{setEditingFarm(f);setFarmName(f.name)}}>Editar</button><button onClick={()=>toggleFarm(f)}>{f.active?'Desactivar':'Activar'}</button></td>}</tr>)}</tbody></table></div></section>:
+ activeModule==='Café'?<section className="coffee-module"><div className="subnav">{coffeeSections.map(s=><button key={s} className={coffeeSection===s?'active':''} onClick={()=>setCoffeeSection(s)}>{s}</button>)}</div>{coffeeSection==='Peones de café'?<><div className="section-heading"><div><h2>Peones de café</h2><p>Registre los trabajadores y asígnelos a una finca.</p></div></div>{isAdmin&&<form className="worker-form" onSubmit={saveWorker}><select value={workerForm.farm_id} onChange={e=>setWorkerForm({...workerForm,farm_id:e.target.value})} required><option value="">Seleccione finca</option>{activeFarms.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}</select><input placeholder="Nombre completo" value={workerForm.full_name} onChange={e=>setWorkerForm({...workerForm,full_name:e.target.value})} required/><input placeholder="Identificación" value={workerForm.identification} onChange={e=>setWorkerForm({...workerForm,identification:e.target.value})}/><input placeholder="Teléfono" value={workerForm.phone} onChange={e=>setWorkerForm({...workerForm,phone:e.target.value})}/><input type="number" min="0" step="0.01" placeholder="Tarifa por hora ₡" value={workerForm.hourly_rate} onChange={e=>setWorkerForm({...workerForm,hourly_rate:e.target.value})} required/><button className="primary-action" disabled={workerBusy}>{editingWorker?'Guardar cambios':'Agregar peón'}</button>{editingWorker&&<button type="button" className="secondary-action" onClick={()=>{setEditingWorker(null);setWorkerForm({farm_id:'',full_name:'',identification:'',phone:'',hourly_rate:''})}}>Cancelar</button>}</form>}{workerError&&<div className="error-box">{workerError}</div>}{workerMessage&&<div className="success-box">{workerMessage}</div>}<div className="farms-table-wrap"><table className="farms-table"><thead><tr><th>Peón</th><th>Finca</th><th>Identificación</th><th>Teléfono</th><th>₡/hora</th><th>Estado</th>{isAdmin&&<th>Acciones</th>}</tr></thead><tbody>{workers.length?workers.map(w=><tr key={w.id}><td><strong>{w.full_name}</strong></td><td>{w.farm_name}</td><td>{w.identification||'—'}</td><td>{w.phone||'—'}</td><td>₡{Number(w.hourly_rate).toLocaleString('es-CR')}</td><td><span className={`status-pill ${w.active?'active':'inactive'}`}>{w.active?'Activo':'Inactivo'}</span></td>{isAdmin&&<td className="farm-actions"><button onClick={()=>editWorker(w)}>Editar</button><button onClick={()=>toggleWorker(w)}>{w.active?'Desactivar':'Activar'}</button></td>}</tr>):<tr><td colSpan={isAdmin?7:6} className="empty-cell">Aún no hay peones registrados.</td></tr>}</tbody></table></div></>:<section className="placeholder-panel"><h2>{coffeeSection}</h2><p>Este apartado será el siguiente en conectarse con Neon.</p></section>}</section>:
+ <section className="placeholder-panel"><h2>{activeModule}</h2><p>Continuaremos conectando sus formularios y reportes.</p></section>}</main></div>
 }
