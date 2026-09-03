@@ -20,7 +20,7 @@ export default function CoffeeModule({farms,user}){
  const activeWorkers=useMemo(()=>workers.filter(w=>w.active),[workers])
  const selectedWorker=activeWorkers.find(w=>String(w.id)===String(weekForm.worker_id))
  const totalHours=['monday_hours','tuesday_hours','wednesday_hours','thursday_hours','friday_hours','saturday_hours','sunday_hours'].reduce((s,k)=>s+Number(weekForm[k]||0),0)
- const gross=totalHours*Number(weekForm.hourly_rate||0),net=gross+Number(weekForm.advances||0)-Number(weekForm.deductions||0)
+ const gross=totalHours*Number(weekForm.hourly_rate||0),net=gross-Number(weekForm.advances||0)-Number(weekForm.deductions||0)
 
  useEffect(()=>{loadWorkers();loadWeeks()},[])
  async function loadWorkers(){const r=await fetch('/api/workers',{cache:'no-store'}),d=await r.json();if(r.ok)setWorkers(d.workers||[]);else setWorkerError(d.error||'No se pudieron cargar los peones.')}
