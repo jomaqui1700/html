@@ -6,7 +6,7 @@ async function auth(){const s=await getSession();if(!s)return{error:NextResponse
 
 export async function GET(){
  const a=await auth();if(a.error)return a.error
- const rows=await sql`SELECT ch.id,ch.harvest_date,ch.week_number,ch.farm_id,ch.worker_id,ch.quantity,ch.unit,ch.rate_per_unit,ch.paid,ch.notes,w.full_name worker_name,f.name farm_name,(ch.quantity*ch.rate_per_unit) amount FROM coffee_harvest ch JOIN workers w ON w.id=ch.worker_id JOIN farms f ON f.id=ch.farm_id ORDER BY ch.harvest_date DESC,ch.id DESC,w.full_name`
+ const rows=await sql`SELECT ch.id,ch.harvest_date,ch.week_number,ch.farm_id,ch.worker_id,ch.quantity,ch.unit,ch.rate_per_unit,ch.paid,ch.paid_at,ch.notes,w.full_name worker_name,f.name farm_name,(ch.quantity*ch.rate_per_unit) amount FROM coffee_harvest ch JOIN workers w ON w.id=ch.worker_id JOIN farms f ON f.id=ch.farm_id ORDER BY ch.harvest_date DESC,ch.id DESC,w.full_name`
  return NextResponse.json({harvest:rows})
 }
 
@@ -34,11 +34,11 @@ export async function PATCH(req){
   const b=await req.json(),paid=Boolean(b.paid)
   if(b.worker_id&&b.week_number&&b.year){
    const workerId=Number(b.worker_id),weekNumber=Number(b.week_number),year=Number(b.year)
-   await sql`UPDATE coffee_harvest SET paid=${paid} WHERE worker_id=${workerId} AND week_number=${weekNumber} AND EXTRACT(YEAR FROM harvest_date)=${year}`
+   await sql`UPDATE coffee_harvest SET paid=${paid},paid_at=${paid?new Date():null} WHERE worker_id=${workerId} AND week_number=${weekNumber} AND EXTRACT(YEAR FROM harvest_date)=${year}`
    return NextResponse.json({ok:true})
   }
   if(!b.id)return NextResponse.json({error:'Registro de cosecha requerido.'},{status:400})
-  await sql`UPDATE coffee_harvest SET paid=${paid} WHERE id=${Number(b.id)}`
+  await sql`UPDATE coffee_harvest SET paid=${paid},paid_at=${paid?new Date():null} WHERE id=${Number(b.id)}`
   return NextResponse.json({ok:true})
  }catch(e){console.error(e);return NextResponse.json({error:'No se pudo actualizar el estado de pago.'},{status:500})}
 }
