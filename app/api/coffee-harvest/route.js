@@ -1,12 +1,15 @@
 import {NextResponse} from'next/server'
+import {createHash} from'node:crypto'
 import {sql} from'../../../lib/db'
 import {getSession} from'../../../lib/auth'
 
 async function auth(){const s=await getSession();if(!s)return{error:NextResponse.json({error:'No autorizado'},{status:401})};return{session:s}}
+function measureNumber(x){const n=Number(x.measure_number);if(n>0)return n;const m=String(x.notes||'').match(/Medida\s+(\d+)/i);return Number(m?.[1]||1)}
+function batchUuid(payload){const h=createHash('sha256').update(JSON.stringify(payload)).digest('hex').slice(0,32).split('');h[12]='4';h[16]=((parseInt(h[16],16)&3)|8).toString(16);const s=h.join('');return`${s.slice(0,8)}-${s.slice(8,12)}-${s.slice(12,16)}-${s.slice(16,20)}-${s.slice(20)}`}
 
 export async function GET(){
  const a=await auth();if(a.error)return a.error
- const rows=await sql`SELECT ch.id,ch.harvest_date,ch.week_number,ch.farm_id,ch.worker_id,ch.quantity,ch.unit,ch.rate_per_unit,ch.paid,ch.paid_at,ch.notes,w.full_name worker_name,f.name farm_name,(ch.quantity*ch.rate_per_unit) amount FROM coffee_harvest ch JOIN workers w ON w.id=ch.worker_id JOIN farms f ON f.id=ch.farm_id ORDER BY ch.harvest_date DESC,ch.id DESC,w.full_name`
+ const rows=await sql`SELECT ch.id,ch.harvest_date,ch.week_number,ch.farm_id,ch.worker_id,ch.quantity,ch.unit,ch.rate_per_unit,ch.paid,ch.paid_at,ch.batch_id,ch.measure_number,ch.notes,ch.created_at,w.full_name worker_name,f.name farm_name,(ch.quantity*ch.rate_per_unit) amount FROM coffee_harvest ch JOIN workers w ON w.id=ch.worker_id JOIN farms f ON f.id=ch.farm_id ORDER BY ch.harvest_date DESC,ch.created_at DESC,ch.id DESC,w.full_name`
  return NextResponse.json({harvest:rows})
 }
 
@@ -17,13 +20,19 @@ export async function POST(req){
   const b=await req.json()
   if(!b.harvest_date)return NextResponse.json({error:'La fecha es requerida.'},{status:400})
   const entries=Array.isArray(b.entries)?b.entries:[]
-  const valid=entries.map(x=>({worker_id:Number(x.worker_id),farm_id:Number(x.farm_id),quantity:Number(x.quantity||0),rate_per_unit:Number(x.rate_per_unit||0),notes:String(x.notes||'')})).filter(x=>x.worker_id&&x.farm_id&&x.quantity>0)
+  const valid=entries.map(x=>({worker_id:Number(x.worker_id),farm_id:Number(x.farm_id),quantity:Number(x.quantity||0),rate_per_unit:Number(x.rate_per_unit||0),measure_number:measureNumber(x),notes:String(x.notes||'')})).filter(x=>x.worker_id&&x.farm_id&&x.quantity>0)
   if(!valid.length)return NextResponse.json({error:'Ingrese al menos una medida con peón, finca y cajuelas.'},{status:400})
   if(valid.some(x=>x.quantity<0||x.rate_per_unit<0))return NextResponse.json({error:'Las cantidades y precios no pueden ser negativos.'},{status:400})
-  for(const x of valid){
-   await sql`INSERT INTO coffee_harvest(harvest_date,week_number,farm_id,worker_id,quantity,unit,rate_per_unit,paid,notes,created_by) VALUES(${b.harvest_date},${Number(b.week_number)},${x.farm_id},${x.worker_id},${x.quantity},'Cajuela',${x.rate_per_unit},false,${x.notes},${a.session.id})`
-  }
-  return NextResponse.json({ok:true,count:valid.length})
+  const canonical={harvest_date:String(b.harvest_date).slice(0,10),week_number:Number(b.week_number),created_by:String(a.session.id),entries:valid.map(x=>({worker_id:x.worker_id,farm_id:x.farm_id,quantity:x.quantity,rate_per_unit:x.rate_per_unit,measure_number:x.measure_number,notes:x.notes})).sort((x,y)=>x.worker_id-y.worker_id||x.measure_number-y.measure_number||x.farm_id-y.farm_id)}
+  const batchId=String(b.batch_id||batchUuid(canonical))
+  const previous=await sql`SELECT COUNT(*)::int count FROM coffee_harvest WHERE batch_id=${batchId}`
+  if(Number(previous[0]?.count||0)>0)return NextResponse.json({error:'Esta planilla ya fue registrada. No se guardaron medidas duplicadas.',duplicate:true},{status:409})
+  try{
+   for(const x of valid){
+    await sql`INSERT INTO coffee_harvest(harvest_date,week_number,farm_id,worker_id,quantity,unit,rate_per_unit,paid,batch_id,measure_number,notes,created_by) VALUES(${b.harvest_date},${Number(b.week_number)},${x.farm_id},${x.worker_id},${x.quantity},'Cajuela',${x.rate_per_unit},false,${batchId},${x.measure_number},${x.notes},${a.session.id})`
+   }
+  }catch(e){if(String(e?.code)==='23505')return NextResponse.json({error:'Esta planilla ya fue registrada. No se guardaron medidas duplicadas.',duplicate:true},{status:409});throw e}
+  return NextResponse.json({ok:true,count:valid.length,batch_id:batchId})
  }catch(e){console.error(e);return NextResponse.json({error:'No se pudo registrar la cosecha.'},{status:500})}
 }
 
