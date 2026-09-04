@@ -30,7 +30,15 @@ export async function POST(req){
 export async function PATCH(req){
  const a=await auth();if(a.error)return a.error
  if(a.session.role!=='admin')return NextResponse.json({error:'Solo administrador.'},{status:403})
- const b=await req.json()
- await sql`UPDATE coffee_harvest SET paid=${Boolean(b.paid)} WHERE id=${Number(b.id)}`
- return NextResponse.json({ok:true})
+ try{
+  const b=await req.json(),paid=Boolean(b.paid)
+  if(b.worker_id&&b.week_number&&b.year){
+   const workerId=Number(b.worker_id),weekNumber=Number(b.week_number),year=Number(b.year)
+   await sql`UPDATE coffee_harvest SET paid=${paid} WHERE worker_id=${workerId} AND week_number=${weekNumber} AND EXTRACT(YEAR FROM harvest_date)=${year}`
+   return NextResponse.json({ok:true})
+  }
+  if(!b.id)return NextResponse.json({error:'Registro de cosecha requerido.'},{status:400})
+  await sql`UPDATE coffee_harvest SET paid=${paid} WHERE id=${Number(b.id)}`
+  return NextResponse.json({ok:true})
+ }catch(e){console.error(e);return NextResponse.json({error:'No se pudo actualizar el estado de pago.'},{status:500})}
 }
