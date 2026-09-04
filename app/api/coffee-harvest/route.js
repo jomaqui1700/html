@@ -40,7 +40,19 @@ export async function PATCH(req){
  const a=await auth();if(a.error)return a.error
  if(a.session.role!=='admin')return NextResponse.json({error:'Solo administrador.'},{status:403})
  try{
-  const b=await req.json(),paid=Boolean(b.paid)
+  const b=await req.json()
+  if(b.edit_measure){
+   const id=Number(b.id),workerId=Number(b.worker_id),farmId=Number(b.farm_id),quantity=Number(b.quantity),rate=Number(b.rate_per_unit)
+   if(!id||!workerId||!farmId)return NextResponse.json({error:'Peón y finca son requeridos.'},{status:400})
+   if(!(quantity>0)||rate<0)return NextResponse.json({error:'La cantidad debe ser mayor que cero y el precio no puede ser negativo.'},{status:400})
+   const current=await sql`SELECT id,paid,measure_number,notes FROM coffee_harvest WHERE id=${id} LIMIT 1`
+   if(!current.length)return NextResponse.json({error:'La medida no existe.'},{status:404})
+   if(current[0].paid)return NextResponse.json({error:'Esta medida pertenece a una nómina Pagada. Marque primero el pago como Pendiente para poder corregirla.'},{status:409})
+   const n=Number(current[0].measure_number)||measureNumber(current[0]),observation=String(b.notes||'').trim(),notes=observation?`Medida ${n}: ${observation}`:`Medida ${n}`
+   await sql`UPDATE coffee_harvest SET worker_id=${workerId},farm_id=${farmId},quantity=${quantity},rate_per_unit=${rate},notes=${notes},measure_number=${n} WHERE id=${id} AND paid=false`
+   return NextResponse.json({ok:true})
+  }
+  const paid=Boolean(b.paid)
   if(b.worker_id&&b.week_number&&b.year){
    const workerId=Number(b.worker_id),weekNumber=Number(b.week_number),year=Number(b.year)
    await sql`UPDATE coffee_harvest SET paid=${paid},paid_at=${paid?new Date():null} WHERE worker_id=${workerId} AND week_number=${weekNumber} AND EXTRACT(YEAR FROM harvest_date)=${year}`
@@ -49,5 +61,5 @@ export async function PATCH(req){
   if(!b.id)return NextResponse.json({error:'Registro de cosecha requerido.'},{status:400})
   await sql`UPDATE coffee_harvest SET paid=${paid},paid_at=${paid?new Date():null} WHERE id=${Number(b.id)}`
   return NextResponse.json({ok:true})
- }catch(e){console.error(e);return NextResponse.json({error:'No se pudo actualizar el estado de pago.'},{status:500})}
+ }catch(e){console.error(e);return NextResponse.json({error:'No se pudo actualizar el registro de cosecha.'},{status:500})}
 }
