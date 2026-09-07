@@ -55,10 +55,15 @@ export async function PATCH(req){
    return NextResponse.json({ok:true})
   }
   const paid=Boolean(b.paid)
+  if(b.worker_id&&b.week_start){
+   const workerId=Number(b.worker_id),weekStart=String(b.week_start).slice(0,10)
+   await sql`UPDATE coffee_harvest SET paid=${paid},paid_at=${paid?new Date():null} WHERE worker_id=${workerId} AND harvest_date>=${weekStart}::date AND harvest_date<(${weekStart}::date+INTERVAL '7 days')`
+   return NextResponse.json({ok:true})
+  }
   if(b.worker_id&&b.week_number&&b.year){
    const workerId=Number(b.worker_id),weekNumber=Number(b.week_number),year=Number(b.year)
    await sql`UPDATE coffee_harvest SET paid=${paid},paid_at=${paid?new Date():null} WHERE worker_id=${workerId} AND week_number=${weekNumber} AND EXTRACT(YEAR FROM harvest_date)=${year}`
-   return NextResponse.json({ok:true})
+   return NextResponse.json({ok:true,legacy_week_match:true})
   }
   if(!b.id)return NextResponse.json({error:'Registro de cosecha requerido.'},{status:400})
   await sql`UPDATE coffee_harvest SET paid=${paid},paid_at=${paid?new Date():null} WHERE id=${Number(b.id)}`
