@@ -5,9 +5,10 @@ import {getSession} from'../../../lib/auth'
 async function auth(){const s=await getSession();if(!s)return{error:NextResponse.json({error:'No autorizado'},{status:401})};return{session:s}}
 function entryData(b){
  const pay_mode=String(b.pay_mode||'Jornal')
- const hours=b.hours===''||b.hours==null?null:Number(b.hours)
- const rate=Number(b.rate||0)
- const jornal_rate=Number(b.jornal_rate||0)
+ const rawHours=b.hours===''||b.hours==null?null:Number(b.hours)
+ const hours=pay_mode==='Horas'?rawHours:null
+ const rate=pay_mode==='Horas'?Number(b.rate||0):0
+ const jornal_rate=pay_mode==='Jornal'?Number(b.jornal_rate||0):0
  const overtime_hours=Number(b.overtime_hours||0)
  const overtime_rate=Number(b.overtime_rate||0)
  const base=pay_mode==='Horas'?Number((Number(hours||0)*rate).toFixed(2)):jornal_rate
@@ -15,7 +16,7 @@ function entryData(b){
  const amount=Number((base+overtime).toFixed(2))
  return{work_date:String(b.work_date||'').slice(0,10),worker_id:Number(b.worker_id),farm_id:Number(b.farm_id),task:String(b.task||'').trim(),pay_mode,hours,rate,jornal_rate,overtime_hours,overtime_rate,amount,notes:String(b.notes||'').trim()}
 }
-function validateEntry(x){if(!x.work_date||!x.worker_id||!x.farm_id||!x.task)return'Fecha, peón, finca y labor son requeridos.';if(!['Jornal','Horas'].includes(x.pay_mode))return'Modalidad de pago no válida.';if(x.pay_mode==='Horas'&&!(x.hours>0))return'Ingrese las horas trabajadas.';if(x.rate<0||x.jornal_rate<0||x.overtime_hours<0||x.overtime_rate<0)return'Los valores de pago no pueden ser negativos.';return''}
+function validateEntry(x){if(!x.work_date||!x.worker_id||!x.farm_id||!x.task)return'Fecha, peón, finca y labor son requeridos.';if(!['Jornal','Horas'].includes(x.pay_mode))return'Modalidad de pago no válida.';if(x.pay_mode==='Horas'&&!(x.hours>0))return'Ingrese las horas trabajadas.';if(x.pay_mode==='Horas'&&!(x.rate>=0))return'Costo de hora no válido.';if(x.rate<0||x.jornal_rate<0||x.overtime_hours<0||x.overtime_rate<0)return'Los valores de pago no pueden ser negativos.';return''}
 
 export async function GET(){const a=await auth();if(a.error)return a.error;const entries=await sql`
  SELECT e.*,w.full_name AS worker_name,f.name AS farm_name,
@@ -32,7 +33,7 @@ export async function GET(){const a=await auth();if(a.error)return a.error;const
         e.farm_id,f.name AS farm_name,COUNT(DISTINCT e.worker_id) AS workers,COUNT(DISTINCT e.work_date) AS work_days,
         COALESCE(SUM(e.hours),0)::numeric(12,2) AS total_hours,
         COALESCE(SUM(e.overtime_hours),0)::numeric(12,2) AS total_overtime_hours,
-        COALESCE(SUM(e.jornal_rate),0)::numeric(14,2) AS total_jornal,
+        COALESCE(SUM(CASE WHEN e.pay_mode='Jornal' THEN e.jornal_rate ELSE 0 END),0)::numeric(14,2) AS total_jornal,
         COALESCE(SUM(e.overtime_hours*e.overtime_rate),0)::numeric(14,2) AS total_overtime,
         COALESCE(SUM(e.amount),0)::numeric(14,2) AS total_amount
  FROM public.coffee_labor_entries e JOIN public.farms f ON f.id=e.farm_id
