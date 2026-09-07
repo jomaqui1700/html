@@ -28,12 +28,14 @@ export async function POST(req){
   const previous=await sql`SELECT COUNT(*)::int count FROM coffee_harvest WHERE batch_id=${batchId}`
   if(Number(previous[0]?.count||0)>0)return NextResponse.json({error:'Esta planilla ya fue registrada. No se guardaron medidas duplicadas.',duplicate:true},{status:409})
   try{
-   for(const x of valid){
-    await sql`INSERT INTO coffee_harvest(harvest_date,week_number,farm_id,worker_id,quantity,unit,rate_per_unit,paid,batch_id,measure_number,notes,created_by) VALUES(${b.harvest_date},${Number(b.week_number)},${x.farm_id},${x.worker_id},${x.quantity},'Cajuela',${x.rate_per_unit},false,${batchId},${x.measure_number},${x.notes},${a.session.id})`
-   }
-  }catch(e){if(String(e?.code)==='23505')return NextResponse.json({error:'Esta planilla ya fue registrada. No se guardaron medidas duplicadas.',duplicate:true},{status:409});throw e}
-  return NextResponse.json({ok:true,count:valid.length,batch_id:batchId})
- }catch(e){console.error(e);return NextResponse.json({error:'No se pudo registrar la cosecha.'},{status:500})}
+   const queries=valid.map(x=>sql`INSERT INTO coffee_harvest(harvest_date,week_number,farm_id,worker_id,quantity,unit,rate_per_unit,paid,batch_id,measure_number,notes,created_by) VALUES(${b.harvest_date},${Number(b.week_number)},${x.farm_id},${x.worker_id},${x.quantity},'Cajuela',${x.rate_per_unit},false,${batchId},${x.measure_number},${x.notes},${a.session.id})`)
+   await sql.transaction(queries)
+  }catch(e){
+   if(String(e?.code)==='23505')return NextResponse.json({error:'Esta planilla ya fue registrada. No se guardó ninguna medida duplicada.',duplicate:true},{status:409})
+   throw e
+  }
+  return NextResponse.json({ok:true,count:valid.length,batch_id:batchId,transactional:true})
+ }catch(e){console.error(e);return NextResponse.json({error:'No se pudo registrar la cosecha. No se guardó ninguna medida de la planilla.'},{status:500})}
 }
 
 export async function PATCH(req){
