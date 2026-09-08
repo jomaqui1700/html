@@ -4,6 +4,7 @@ import CoffeeFertilization from'./CoffeeFertilization'
 import CoffeeAbonada from'./CoffeeAbonada'
 import CoffeeFarmCostReports from'./CoffeeFarmCostReports'
 import CoffeeExpenses from'./CoffeeExpenses'
+import CoffeeProduction from'./CoffeeProduction'
 
 const sections=['Peones de café','Cosecha diaria','Pagos semanales','Atomización','Abonada','Gastos de café','Producción por finca','Reportes de café']
 const blankWorker={full_name:'',identification:'',phone:''}
@@ -71,6 +72,7 @@ export default function CoffeeModule({farms,user}){
  section==='Atomización'?<CoffeeFertilization farms={farms} user={user}/>:
  section==='Abonada'?<CoffeeAbonada farms={farms} user={user}/>:
  section==='Gastos de café'?<CoffeeExpenses farms={farms} user={user}/>:
+ section==='Producción por finca'?<CoffeeProduction farms={farms}/>:
  section==='Reportes de café'?<CoffeeFarmCostReports farms={farms}/>:
  <div className="section-heading"><div><h2>{section}</h2><p>Este módulo se conectará con las fincas registradas y sus reportes.</p></div></div>}
  </section>
